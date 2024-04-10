@@ -1,0 +1,82 @@
+name: deploy-elementary-to-pages
+
+on:
+  workflow_dispatch:
+    inputs:
+      env_name:
+        description: 'Environment to run tests against'
+        type: environment
+        required: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.env_name }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+      - name: Setup PostgreSQL for Linux/macOS/Windows
+        uses: ikalnytskyi/action-setup-postgres@v5
+
+      - name: Add credentials
+        continue-on-error: true
+        env:
+          host: localhost
+          user: postgres
+          pass: postgres
+          db: postgres
+          schema: js
+        run: |
+          sed -i 's@{{ env_var('\''host'\'') }}@'"$host"'@' profiles.yml
+          sed -i 's@{{ env_var('\''user'\'') }}@'"$user"'@' profiles.yml
+          sed -i 's@{{ env_var('\''pass'\'') }}@'"$pass"'@' profiles.yml
+          sed -i 's@{{ env_var('\''db'\'') }}@'"$db"'@' profiles.yml
+          sed -i 's@{{ env_var('\''schema'\'') }}@'"$schema"'@' profiles.yml
+
+      - name: Run edr report
+        if: always()
+        continue-on-error: true
+        run: |
+          dbt deps && dbt seed && dbt run && dbt test && edr report
+          echo `pwd`
+
+      - name: Copy edr_target result to gh-pages
+        if: always()
+        run: |
+          cp ./edr_target/elementary_report.html ./edr_target/index.html
+          mkdir gh-pages
+          cp -R ./edr_target ./gh-pages
+
+      - name: Git push to gh-pages
+        uses: peaceiris/actions-gh-pages@v2
+        if: always()
+        env:
+          PERSONAL_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PUBLISH_BRANCH: gh-pages
+          PUBLISH_DIR: gh-pages
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        if: always()
+        with:
+          path: gh-pages
+
+  deploy:
+    needs: build
+    permissions:
+      pages: write
+      id-token: write
+    runs-on: ubuntu-latest
+    environment:
+      name: ${{ inputs.env_name }}
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
