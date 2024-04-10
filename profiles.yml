@@ -1,0 +1,23 @@
+jaffle_shop:
+  outputs:
+    default:
+      type: postgres
+      host: "{{ env_var('host') }}"
+      user: "{{ env_var('user') }}"
+      password: "{{ env_var('pass') }}"
+      port: 5432
+      dbname: "{{ env_var('db') }}"
+      schema: "{{ env_var('schema') }}"
+      threads: 24
+
+elementary:
+  outputs:
+    default:
+      type: postgres
+      host: "{{ env_var('host') }}"
+      user: "{{ env_var('user') }}"
+      password: "{{ env_var('pass') }}"
+      port: 5432
+      dbname: "{{ env_var('db') }}"
+      schema: "{{ env_var('schema') }}_elementary"
+      threads: 24
